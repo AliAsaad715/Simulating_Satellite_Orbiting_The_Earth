@@ -6,44 +6,85 @@ import { Physics } from './Physics.js';
 export class Main {
     constructor() {
         this.drawing = new Drawing();
-        // this.physics = new Physics();
         this.clock = new THREE.Clock();
         this.controls = null;
         this.guiControls = null;
-
-        // this.drawing = new Drawing();
         this.physics = new Physics(this.drawing);
+
+        
+        this.sizes = {
+            width: window.innerWidth,
+            height: window.innerHeight
+        };
+
+        this.crashMessageElement = this.createCrashMessageElement();
 
         this.init();
     }
 
     async init() {
         try {
-            // 1. إعداد الأساسيات أولاً
             this.drawing.createStarfield();
             this.drawing.setupLighting();
             this.setupControls();
 
-            // 2. تحميل النماذج بشكل متزامن
             await this.loadModels();
 
-            // 3. تهيئة القمر الصناعي في موقعه الصحيح
             this.initializeSatellite();
 
-            // 4. إعداد واجهة المستخدم
             this.guiControls = this.physics.createGUI();
 
-            // 5. بدء التحريك
+            this.physics.onCrashCallback = this.showCrashMessage.bind(this);
+
             this.animate();
 
-            // 6. إعداد أحداث النافذة
             this.setupEventListeners();
 
-            console.log('التطبيق يعمل بنجاح!');
+            console.log('success');
 
         } catch (error) {
-            console.error('خطأ في التهيئة:', error);
+            console.error('error', error);
         }
+    }
+
+   
+    createCrashMessageElement() {
+        const element = document.createElement('div');
+        element.style.position = 'absolute';
+        element.style.top = '50%';
+        element.style.left = '50%';
+        element.style.transform = 'translate(-50%, -50%)';
+        element.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        element.style.color = 'white';
+        element.style.padding = '20px';
+        element.style.borderRadius = '10px';
+        element.style.textAlign = 'center';
+        element.style.fontSize = '24px';
+        element.style.zIndex = '1000';
+        element.style.display = 'none';
+        element.innerHTML = `
+           <h2>Satellite Crash!</h2>
+             <p>The satellite has entered the atmosphere and crashed on the Earth's surface.</p>
+            <button id="resetButton" style="margin-top: 15px; padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                Restart
+            </button>
+        `;
+        document.body.appendChild(element);
+
+        element.querySelector('#resetButton').addEventListener('click', () => {
+            this.hideCrashMessage();
+            this.physics.resetSimulation();
+        });
+
+        return element;
+    }
+
+    showCrashMessage() {
+        this.crashMessageElement.style.display = 'block';
+    }
+
+    hideCrashMessage() {
+        this.crashMessageElement.style.display = 'none';
     }
 
     async loadModels() {
@@ -58,30 +99,41 @@ export class Main {
 
     initializeSatellite() {
         if (this.drawing.satellite) {
-            const initialPosition = this.physics.updateSatelliteOrbit();
-            this.drawing.updateSatellitePosition(initialPosition);
+            this.physics.updateSatelliteOrbit();
         } else {
-            console.log('القمر الصناعي لم يتم تحميله بعد');
-            // حاول مرة أخرى بعد فترة إذا لزم الأمر
             setTimeout(() => this.initializeSatellite(), 100);
         }
     }
 
     setupControls() {
-        this.controls = new OrbitControls(this.drawing.camera, this.drawing.renderer.domElement);
+        this.controls = new OrbitControls(this.drawing.camera, this.drawing.canvas);
         this.controls.enableDamping = true;
         this.controls.minDistance = 20;
         this.controls.maxDistance = 700;
 
-        // ضبط الكاميرا لترى المشهد بشكل أفضل
-        this.drawing.camera.position.set(0, 50, 150);
+        this.drawing.camera.position.set(0, 50, 250);
         this.controls.update();
     }
 
     setupEventListeners() {
         window.addEventListener('resize', () => {
-            this.drawing.resize();
-            this.drawing.render(this.drawing.camera, this.controls);
+            
+            this.sizes.width = window.innerWidth;
+            this.sizes.height = window.innerHeight;
+
+            this.drawing.camera.aspect = this.sizes.width / this.sizes.height;
+            this.drawing.camera.updateProjectionMatrix();
+
+            this.drawing.renderer.setSize(this.sizes.width, this.sizes.height);
+            this.drawing.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        });
+
+        window.addEventListener('dblclick', () => {
+            if (!document.fullscreenElement) {
+                this.drawing.canvas.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
         });
     }
 
@@ -89,34 +141,29 @@ export class Main {
         requestAnimationFrame(() => this.animate());
         const deltaTime = this.clock.getDelta();
 
-        // تحديث دوران الأرض
-        if (this.drawing.earth) {
-            this.drawing.updateEarthRotation(
-                deltaTime,
-                this.physics.params.timeScale, // زيادة سرعة الدوران
-                this.physics.params.earthRotationSpeed // زيادة سرعة الدوران
-            );
+        if (!this.physics.params.crashed) {
+            if (this.drawing.earth) {
+                this.drawing.updateEarthRotation(
+                    deltaTime,
+                    this.physics.params.timeScale,
+                    this.physics.params.earthRotationSpeed
+                );
+            }
+
+            if (this.drawing.satellite) {
+                const newPosition = this.physics.simulateOrbit(deltaTime, this.drawing.satellite.position.clone());
+                this.drawing.updateSatellitePosition(newPosition);
+            }
         }
 
-        // محاكاة حركة القمر الصناعي
-        if (this.drawing.satellite) {
-            const newPosition = this.physics.simulateOrbit(deltaTime, this.drawing.satellite.position.clone());
-            this.drawing.updateSatellitePosition(newPosition);
-
-        }
-
-        // تحديث واجهة المستخدم
         if (this.guiControls) {
             this.guiControls.currentSpeed.updateDisplay();
             this.guiControls.radiusControl.updateDisplay();
         }
 
-        // تحديث التحكم والتـصيير
         this.controls.update();
         this.drawing.render(this.drawing.camera, this.controls);
     }
 }
 
-// بدء التطبيق
 new Main();
-

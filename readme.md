@@ -1,4 +1,4 @@
-# Three.js Journey
+# Simulation Of Satellite
 
 ## Setup
 Download [Node.js](https://nodejs.org/en/download/).
