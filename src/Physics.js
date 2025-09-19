@@ -129,7 +129,6 @@ export class Physics {
         return newPosition_m.divideScalar(1000);
     }
 
-    // إعادة تعيين المحاكاة
     resetSimulation() {
         this.params.crashed = false;
         this.updateSatelliteOrbit();
