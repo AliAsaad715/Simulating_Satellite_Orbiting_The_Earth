@@ -55,8 +55,8 @@ cd Simulating_Satellite_Orbiting_The_Earth
 ```
 
 ## Setup
-Download [Node.js](https://nodejs.org/en/download/).
-Run this followed commands:
+1. Download [Node.js](https://nodejs.org/en/download/).
+2. Run this followed commands:
 
 ``` bash
 # Install dependencies (only the first time)
@@ -68,6 +68,7 @@ npm run dev
 # Build for production in the dist/ directory
 npm run build
 ```
+3. Open your browser to: http://localhost:8080
 
 ## 🎮 Simulation Controls
 ### Force Manipulation
